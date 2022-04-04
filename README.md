@@ -1,4 +1,4 @@
-# <img style = "float: right; max-height: 100px;" src = "/images/eDOS.png"> eDOS
+# <img style = "float: right;" height = "40" src = "/images/eDOS.png"> eDOS
 
 ### the Emulated Disk Operating System
 ***
