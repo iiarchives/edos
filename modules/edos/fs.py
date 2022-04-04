@@ -15,9 +15,16 @@ open_ = open
 # Helper functions
 def resolve(p: str) -> str:
     if p[0] == "/":
-        return os.path.join(os.environ["EDOS_DISK"], p[1:])
+        result = os.path.join(os.environ["EDOS_DISK"], p[1:])
 
-    return os.path.abspath(os.path.join(os.getcwd(), p))
+    else:
+        result = os.path.join(os.getcwd(), p)
+
+    path = os.path.abspath(result)
+    if os.environ["EDOS_DISK"] not in path:
+        return os.environ["EDOS_DISK"]
+
+    return path
 
 def open(p: str, *args, **kwargs) -> Any:
     return open_(resolve(p), *args, **kwargs)
