@@ -87,26 +87,26 @@ class Shell(object):
     def handle_input(self) -> None:
         while True:
             command = self.readline(f"{fs.getcwd()} $ ").split(" ")
-            cmd, args = command[0], command[1:]
+            raw, args = command[0], command[1:]
 
             # Find item on path
-            if cmd in self.macros:
+            if raw in self.macros:
                 try:
-                    self.macros[cmd](self, shlex.split(" ".join(args)))
+                    self.macros[raw](self, shlex.split(" ".join(args)))
 
                 except Exception as e:
                     if isinstance(e, ValueError) and "quotation" in str(e):
-                        print(f"eDOS Shell: {e}")
+                        print(f"edos: {e}")
 
                     else:
-                        print("Internal macro error:")
+                        print(f"Python exception occured in macro '{raw}':")
                         print(traceback.format_exc())
 
                 continue
 
-            cmd = self.path.resolve(cmd)
+            cmd = self.path.resolve(raw)
             if cmd is None:
-                print("eDOS: command not found")
+                print(f"{raw}: command not found")
                 continue
 
             # Check how we should run it

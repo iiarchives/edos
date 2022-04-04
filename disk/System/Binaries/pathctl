@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+
+# Copyright 2022 iiPython
+
+# Modules
+import sys
+from edos import fs
+
+# Initialization
+sys.argv = sys.argv[1:]
+
+# Handler functions
+def load_entries() -> list:
+    with fs.open("/System/Settings/system_path", "r") as f:
+        return f.read().splitlines()
+
+def write_file(content: str) -> None:
+    with fs.open("/System/Settings/system_path", "w") as f:
+        f.write(content)
+
+# Handle commands
+if not sys.argv:
+    exit("""Usage:
+  pathctl <operation> [...args]
+
+AVAILABLE OPERATIONS:
+  list                list all path entries
+  list numbered       list all path entries, including their id (for editing)
+  add                 add a path entry
+  edit                edit a path entry
+  remove              remove a path entry""")
+
+elif sys.argv[0] == "list":
+    numbered = sys.argv[1:] and sys.argv[1] == "numbered"
+    for num, entry in enumerate(load_entries()):
+        if entry.strip() and entry[0] != "#":
+            print(f"{str(num) + ' ' if numbered else ''}{entry}")
+
+elif sys.argv[0] == "add":
+    if not sys.argv[1:]:
+        exit("usage: pathctl add <path>")
+
+    write_file("\n".join(load_entries() + [sys.argv[1]]))
+
+elif sys.argv[0] == "edit":
+    if not len(sys.argv[1:]) == 2:
+        exit("usage: pathctl edit <number> <new>")
+
+    entries = load_entries()
+    try:
+        entries[int(sys.argv[1])] = sys.argv[2]
+        write_file("\n".join(entries))
+
+    except Exception:
+        print("pathctl: invalid entry number")
+
+elif sys.argv[0] == "remove":
+    if not sys.argv[1:]:
+        exit("usage: pathctl remove <number>")
+
+    entries = load_entries()
+    try:
+        del entries[int(sys.argv[1])]
+        write_file("\n".join(entries))
+
+    except Exception:
+        print("pathctl: invalid entry number")
