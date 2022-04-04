@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+
+# Copyright 2022 iiPython
+
+# Modules
+import os
+import sys
+import math
+from edos import fs
+from iipython import color
+
+# Initialization
+directory = os.getcwd()
+positionals = [a for a in sys.argv[1:] if a[0] != "-"]
+if positionals:
+    directory = fs.resolve(positionals[-1])
+
+def argcheck(args: list) -> bool:
+    return any([a in sys.argv for a in args])
+
+def colorize(path: str) -> str:
+    fp = os.path.join(directory, path)
+    if os.path.isdir(fp):
+        return f"[blue]{path}"
+
+    return path
+
+def convert_size(size: int) -> str:
+    if not size:
+        return "-"
+
+    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    i = int(math.floor(math.log(size, 1024)))
+    return f"{str(round(size / math.pow(1024, i), 2)).removesuffix('.0')}{size_name[i]}"
+
+# CLI
+if argcheck(["-h", "--help"]):
+    exit("""Usage:
+  ls [options] [path]
+
+META OPTIONS:
+  -h, --help                shows this message
+  -v, --version             show version of ls
+
+DISPLAY OPTIONS:
+  -l, --long                use long format
+  -a, --all                 list all items, including hidden ones
+  -nc, --nocolor            disable colored output""")
+
+# Format handlers
+class LongFormat:
+    def format(items: list) -> None:
+        nocolor = argcheck(['-nc', '--nocolor'])
+        for item in items:
+            fp, size = os.path.join(directory, item), "-"
+            if os.path.isfile(fp):
+                size = convert_size(os.path.getsize(fp))
+
+            print(color(f" [lblack]{' ' * (5 - len(size))}{size}[/] {colorize(item)}", dry = nocolor))
+
+class ShortFormat:
+    def format(items: list) -> None:
+        items, nocolor = (["[blue].."] if argcheck(["-a", "--all"]) else []) + sorted([colorize(i) for i in items]), argcheck(["-nc", "--nocolor"])
+        [print(color("  ".join(c), dry = nocolor)) for c in [items[i:i + 4] for i in range(0, len(items), 4)]]
+
+formatter = ShortFormat
+if argcheck(["-l", "--long"]):
+    formatter = LongFormat
+
+# Handle listing
+items = os.listdir(directory)
+if not argcheck(["-a", "--all"]):
+    items = [i for i in items if not i.startswith(".")]
+
+formatter.format(items)

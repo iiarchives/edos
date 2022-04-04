@@ -15,7 +15,7 @@ class PathHandler(object):
             self.path = [itm for itm in open(self.path_file, "r").read().splitlines() if not itm.startswith("#") and itm.strip()]
 
     def resolve(self, path: str) -> str | None:
-        for sp in self.path:
+        for sp in self.path + [os.getcwd()]:
             fp = fs.resolve(sp)
             for item in os.listdir(fp):
                 itempath = os.path.join(fp, item)

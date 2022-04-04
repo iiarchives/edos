@@ -25,19 +25,31 @@ class Shell(object):
         self.macros = MacroLoader().as_dict()
 
     def autocomplete(self, value: str) -> str:
+        def check_path_for_match(path: str) -> str | None:
+            for file in os.listdir(path):
+                if file.lower().startswith(value.lower().split("/")[-1]):
+                    if not value.startswith("/"):
+                        return os.path.join(path, file).replace(os.getcwd(), "").lstrip("/")
+
+                    fp = fs.clean(os.path.abspath(os.path.join(path, file)))
+                    return fp if " " not in fp else f"\"{fp}\""
+
         value = value.strip("\"")
         if value.startswith("/"):
             path = fs.resolve("/".join(value.split("/")[:-1]) or "/")
-            if os.path.isdir(path):
-                for file in os.listdir(path):
-                    if file.lower().startswith(value.lower().split("/")[-1]):
-                        fp = fs.clean(os.path.abspath(os.path.join(path, file)))
-                        return fp if " " not in fp else f"\"{fp}\""
+
+        else:
+            path = os.getcwd()
+            if "/" in value:
+                path = os.path.join(path, "/".join(value.split("/")[:-1]))
+
+        if os.path.isdir(path):
+            return check_path_for_match(path)
 
     def readline(self, prompt: str) -> str:
         command, last_size = "", 0
         while True:
-            prefix = f"{' ' * (last_size + 4)}\r" if len(command) < last_size else ""
+            prefix = f"{' ' * os.get_terminal_size()[0]}\r" if len(command) < last_size else ""
             print(f"\r{prefix}{prompt}{command}", end = "")
             last_size = len(command)
 
