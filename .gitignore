@@ -1,0 +1,8 @@
+# By design, the disk directory is included in this repo.
+# It provides the default directory structure and is needed for first time setup.
+
+# Hide disk object(s)
+*.edos
+
+# Hide Python goodies
+__pycache__/
