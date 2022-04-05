@@ -9,7 +9,7 @@ from edos import fs
 class StandardLib(object):
     def __init__(self) -> None:
         self.macros = {
-            "cd": self.cd
+            "cd": self.cd, "exit": lambda *a: os._exit(0)
         }
 
     def cd(self, shell, args: list) -> None:
