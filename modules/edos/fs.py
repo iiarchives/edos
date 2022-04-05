@@ -38,6 +38,9 @@ def clean(p: str) -> str:
 def getcwd() -> str:
     return clean(os.getcwd()) or "/"
 
+for f in ["remove"]:
+    globals()[f] = lambda p: getattr(os, f)(resolve(p))
+
 for f in ["isfile", "isdir", "islink", "exists"]:
     globals()[f] = lambda p: getattr(os.path, f)(resolve(p))
 

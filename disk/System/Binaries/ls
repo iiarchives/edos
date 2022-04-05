@@ -64,7 +64,7 @@ class LongFormat:
 
 class ShortFormat:
     def format(items: list) -> None:
-        items, nocolor = (["[blue].."] if argcheck(["-a", "--all"]) else []) + sorted([colorize(i) for i in items]), argcheck(["-nc", "--nocolor"])
+        items, nocolor = (["[blue].."] if argcheck(["-a", "--all"]) else []) + sorted([colorize(i) + "[reset]" for i in items]), argcheck(["-nc", "--nocolor"])
         [print(color("  ".join(c), dry = nocolor)) for c in [items[i:i + 4] for i in range(0, len(items), 4)]]
 
 formatter = ShortFormat

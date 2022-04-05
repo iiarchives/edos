@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+
+# Copyright 2022 iiPython
+
+# Modules
+import os
+import sys
+import shutil
+from edos import fs
+
+# Initialization
+def argcheck(args: list) -> bool:
+    return any([a in sys.argv for a in args])
+
+sys.argv = sys.argv[1:]
+if not sys.argv or argcheck(["-h", "--help"]):
+    exit("""Usage:
+  del [options] <path>
+
+META OPTIONS:
+  -h, --help                shows this message
+  -v, --version             show version of del
+
+DIRECTORY OPTIONS:
+  -d, --directory           delete a directory rather than a file
+  -f, --force               force delete, skipping the confirmation prompt""")
+
+elif argcheck(["-v", "--version"]):
+    exit("eDOS del v1.0.0")
+
+path = fs.resolve([a for a in sys.argv if a[0] != "-"][-1])
+
+# Handle deletion
+if not os.path.exists(path):
+    exit(f"{fs.clean(path)}: no such file or directory")
+
+if os.path.isdir(path):
+    fc = len(os.listdir(path))
+    if not argcheck(["-d", "--directory"]):
+        exit("del: provided input is a directory")
+
+    elif not argcheck(["-f", "--force"]) and fc:
+        if (input(f"Delete all {fc} items from {fs.clean(path)} (y/N)? ") or "n").lower() != "y":
+            exit()
+
+    try:
+        shutil.rmtree(path)
+
+    except Exception as e:
+        exit(f"del: {e}")
+
+elif os.path.isfile(path):
+    try:
+        os.remove(path)
+
+    except Exception as e:
+        exit(f"del: {e}")
