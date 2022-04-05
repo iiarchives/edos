@@ -6,6 +6,7 @@ import sys
 import copy
 import shlex
 import traceback
+from iipython import color
 from magic import from_file
 from iipython.iikp import readchar, keys
 
@@ -17,7 +18,7 @@ from edos.shell.macros import MacroLoader
 class Shell(object):
     def __init__(self, root: str) -> None:
         self.root = root
-        self.history = []
+        self.env, self.history = {"vs": __version__}, []
 
         # Load filesystem
         self.fs = fs.Filesystem(os.path.join(root, "disk.edos"))
@@ -116,14 +117,26 @@ class Shell(object):
                 else:
                     command = self.history[-history["i"]]
 
+    def format_env(self, text: str) -> str:
+        for k, v in self.env.items():
+            text = text.replace(f"${k}", v)
+
+        return text
+
+    def fetch_prompt(self) -> str:
+        return self.format_env(fs.open("/System/Settings/prompt", "r").read() if fs.isfile("/System/Settings/prompt") else r"%dir $")
+
     def handle_input(self) -> None:
-        print(f"\n\tEmulated Disk Operating System (eDOS) v{__version__}\n\t    Copyright (c) 2022-present iiPython\n")
+        print(color(f"\n\t[yellow]Emulated Disk Operating System (eDOS) v{__version__}[/]\n\t    [lblack]Copyright (c) 2022-present iiPython[/]\n"))
         while True:
-            command = self.readline(f"{fs.getcwd()} $ ")
+            self.env["dir"] = fs.getcwd()
+
+            # Process command input
+            command = self.readline(color(self.fetch_prompt()))
             if not command:
                 continue
 
-            command = command.split(" ")
+            command = self.format_env(command).split(" ")
             raw, args = command[0], command[1:]
 
             # Find item on path
