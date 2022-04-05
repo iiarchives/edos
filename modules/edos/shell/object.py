@@ -8,7 +8,7 @@ import traceback
 from magic import from_file
 from iipython.iikp import readchar, keys
 
-from edos import fs
+from edos import fs, __version__
 from edos.shell.path import PathHandler
 from edos.shell.macros import MacroLoader
 
@@ -85,6 +85,7 @@ class Shell(object):
                 command = command[:-1]
 
     def handle_input(self) -> None:
+        print(f"\n\tEmulated Disk Operating System (eDOS) v{__version__}\n\t    Copyright (c) 2022-present iiPython\n")
         while True:
             command = self.readline(f"{fs.getcwd()} $ ").split(" ")
             raw, args = command[0], command[1:]

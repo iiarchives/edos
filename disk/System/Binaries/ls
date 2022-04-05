@@ -3,6 +3,7 @@
 # Copyright 2022 iiPython
 
 # Modules
+from ast import arg
 import os
 import sys
 import math
@@ -46,6 +47,9 @@ DISPLAY OPTIONS:
   -l, --long                use long format
   -a, --all                 list all items, including hidden ones
   -nc, --nocolor            disable colored output""")
+
+elif argcheck(["-v", "--version"]):
+    exit("eDOS ls v1.0.3")
 
 # Format handlers
 class LongFormat:
