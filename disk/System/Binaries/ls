@@ -3,7 +3,6 @@
 # Copyright 2022 iiPython
 
 # Modules
-from ast import arg
 import os
 import sys
 import math
