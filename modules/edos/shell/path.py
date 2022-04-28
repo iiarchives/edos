@@ -10,6 +10,10 @@ class PathHandler(object):
     def __init__(self) -> None:
         self.path = []
         self.path_file = fs.resolve("/System/Settings/system_path")
+
+        self.load()
+
+    def load(self) -> None:
         if os.path.isfile(self.path_file):
             self.path = [itm for itm in open(self.path_file, "r").read().splitlines() if not itm.startswith("#") and itm.strip()]
 

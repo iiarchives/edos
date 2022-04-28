@@ -11,6 +11,7 @@ class StandardLib(object):
         self.macros = {
             "cd": self.cd,
             "set": self.set,
+            ".": self.pathref,
             "exit": lambda *a: os._exit(0)
         }
 
@@ -18,10 +19,23 @@ class StandardLib(object):
         if not args:
             return os.chdir(fs.resolve("/"))
 
-        os.chdir(fs.resolve(args[0]))
+        try:
+            os.chdir(fs.resolve(args[0]))
+
+        except FileNotFoundError:
+            return print("cd: no such directory")
 
     def set(self, shell, args: list) -> None:
         if len(args) != 2:
             return print("usage: set <var> <value>")
 
         shell.env[args[0]] = args[1]
+
+    def pathref(self, shell, args: list) -> None:
+        if args:
+            if not fs.isfile(args[0]):
+                return print("source: no such path file exists")
+
+            shell.path.path_file = fs.resolve(args[0])
+
+        shell.path.load()
