@@ -71,8 +71,15 @@ if argcheck(["-l", "--long"]):
     formatter = LongFormat
 
 # Handle listing
-items = os.listdir(directory)
-if not argcheck(["-a", "--all"]):
-    items = [i for i in items if not i.startswith(".")]
+try:
+    items = os.listdir(directory)
+    if not argcheck(["-a", "--all"]):
+        items = [i for i in items if not i.startswith(".")]
 
-formatter.format(items)
+    formatter.format(items)
+
+except PermissionError:
+    print("ls: permission denied (is your eDOS system setup correctly?)")
+
+except FileNotFoundError:
+    print("ls: no such directory")
