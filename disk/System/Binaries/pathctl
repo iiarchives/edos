@@ -28,7 +28,8 @@ AVAILABLE OPERATIONS:
   list numbered       list all path entries, including their id (for editing)
   add                 add a path entry
   edit                edit a path entry
-  remove              remove a path entry""")
+  remove              remove a path entry by number
+  removeraw           remove a path entry by text""")
 
 elif sys.argv[0] == "list":
     numbered = sys.argv[1:] and sys.argv[1] == "numbered"
@@ -65,3 +66,15 @@ elif sys.argv[0] == "remove":
 
     except Exception:
         print("pathctl: invalid entry number")
+
+elif sys.argv[0] == "removeraw":
+    if not sys.argv[1:]:
+        exit("usage: pathctl removeraw <entry>")
+
+    entries = load_entries()
+    try:
+        entries.remove(sys.argv[1])
+        write_file("\n".join(entries))
+
+    except Exception:
+        print("pathctl: invalid entry")

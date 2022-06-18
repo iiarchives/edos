@@ -4,5 +4,8 @@
 # Hide disk object(s)
 *.edos
 
+# Hide special disk files
+disk/System/pkgs.list
+
 # Hide Python goodies
 __pycache__/

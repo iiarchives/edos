@@ -16,13 +16,14 @@ from edos.shell.macros import MacroLoader
 
 # Shell class
 class Shell(object):
-    def __init__(self, root: str) -> None:
+    def __init__(self, root: str, zombie: bool = False) -> None:
         self.root = root
         self.env, self.history = {"vs": __version__}, []
 
         # Load filesystem
-        self.fs = fs.Filesystem(os.path.join(root, "disk.edos"))
-        os.chdir(self.fs.disk_location)
+        if not zombie:
+            self.fs = fs.Filesystem(os.path.join(root, "disk.edos"))
+            os.chdir(self.fs.disk_location)
 
         self.path = PathHandler()
         self.macros = MacroLoader().as_dict()
@@ -126,6 +127,43 @@ class Shell(object):
     def fetch_prompt(self) -> str:
         return self.format_env(fs.open("/System/Settings/prompt", "r").read() if fs.isfile("/System/Settings/prompt") else r"%dir $")
 
+    def execute(self, line: str) -> None:
+        command = self.format_env(line).split(" ")
+        raw, args = command[0], command[1:]
+
+        # Find item on path
+        if raw in self.macros:
+            try:
+                self.macros[raw](self, shlex.split(" ".join(args)))
+
+            except Exception as e:
+                if isinstance(e, ValueError) and "quotation" in str(e):
+                    print(f"edos: {e}")
+
+                else:
+                    print(f"Python exception occured in macro '{raw}':")
+                    print(traceback.format_exc())
+
+            return
+
+        cmd = self.path.resolve(raw)
+        if cmd is None:
+            return print(f"{raw}: command not found")
+
+        # Check how we should run it
+        built_command, file_guess = None, from_file(cmd).lower()
+        if "python script" in file_guess:
+            built_command = f"PYTHONPATH=\"{os.path.join(self.root, 'modules')}\" EDOS_ROOT=\"{self.root}\" {sys.executable} {cmd}"
+
+        elif "elf 64-bit lsb executable" in file_guess:
+            built_command = cmd
+
+        # Launch file
+        if file_guess is None:
+            return print("File is not an eDOS-compatible executable.")
+
+        os.system(f"{built_command} {' '.join(args)}")
+
     def handle_input(self) -> None:
         print(color(f"\n\t[yellow]Emulated Disk Operating System (eDOS) v{__version__}[/]\n\t    [lblack]Copyright (c) 2022-present iiPython[/]\n"))
         while True:
@@ -136,40 +174,4 @@ class Shell(object):
             if not command:
                 continue
 
-            command = self.format_env(command).split(" ")
-            raw, args = command[0], command[1:]
-
-            # Find item on path
-            if raw in self.macros:
-                try:
-                    self.macros[raw](self, shlex.split(" ".join(args)))
-
-                except Exception as e:
-                    if isinstance(e, ValueError) and "quotation" in str(e):
-                        print(f"edos: {e}")
-
-                    else:
-                        print(f"Python exception occured in macro '{raw}':")
-                        print(traceback.format_exc())
-
-                continue
-
-            cmd = self.path.resolve(raw)
-            if cmd is None:
-                print(f"{raw}: command not found")
-                continue
-
-            # Check how we should run it
-            built_command, file_guess = None, from_file(cmd).lower()
-            if "python script" in file_guess:
-                built_command = f"PYTHONPATH=\"{os.path.join(self.root, 'modules')}\" {sys.executable} {cmd}"
-
-            elif "elf 64-bit lsb executable" in file_guess:
-                built_command = cmd
-
-            # Launch file
-            if file_guess is None:
-                print("File is not an eDOS-compatible executable.")
-                continue
-
-            os.system(f"{built_command} {' '.join(args)}")
+            self.execute(command)

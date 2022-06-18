@@ -1,0 +1,252 @@
+#!/usr/bin/env python3
+
+# Copyright 2022 iiPython
+
+# Modules
+import os
+import sys
+import json
+import time
+import string
+import random
+import shutil
+import zipfile
+from tqdm import tqdm
+from edos import fs, Shell
+from fnmatch import fnmatch
+from tempfile import gettempdir
+try:
+    from requests import get
+
+except ImportError:
+    print("ERROR: pkg requires the python requests module, but it is not installed.")
+    exit("By default, eDOS does not include requests. Please install it via pip on your host system.")
+
+# Initialization
+argv = sys.argv[1:]
+check_args = lambda a, p = None: any([_ for _ in a if _ in argv]) if not p else argv[p] in a  # noqa
+package_lock = fs.resolve("/System/pkgs.list")
+
+# Package management
+temp = gettempdir()
+dirs = {"extract": os.path.join(temp, "_edospkgextract")}
+shell = Shell(os.environ["EDOS_ROOT"], zombie = True)
+def is_installed(pid: str) -> bool:
+    if not os.path.isfile(package_lock):
+        with open(package_lock, "w+") as fh:
+            fh.write("")
+
+    with open(package_lock, "r") as fh:
+        return pid in [ln.split(" ")[0] for ln in fh.read().splitlines()]
+
+def mark_as_installed(pid: str, meta: dict) -> None:
+    if is_installed(pid):
+        return
+
+    with open(package_lock, "a") as fh:
+        fh.write(f"{pid} {json.dumps(meta)}" + "\n")
+
+def install_packages(paths: list) -> int:
+    installed, postinstalls = 0, []
+    for path in paths:
+        path, meta = path
+        package_meta = meta.get("meta", {})
+
+        # Handle meta checks
+        name = package_meta.get("name", "Unknown")
+        try:
+            package_id = package_meta["id"]
+            if is_installed(package_id):
+                print(f"  {package_id}: already installed")
+                continue
+
+        except KeyError:
+            print(f"  {name}: invalid package (no ID)")
+            continue
+
+        # Create directories
+        [os.mkdir(fs.resolve(d)) for d in meta.get("makedir", [])]
+
+        # Begin extracting
+        extract_items = meta.get("extract", {}).items()
+        with tqdm(desc = f"  Installing {package_id}", total = len(extract_items)) as bar:
+            for match, dest in meta.get("extract", {}).items():
+                dest = fs.resolve(dest)
+                for fpath, _, files in os.walk(os.path.join(path, "/".join(match.split("/")[:-1]))):
+                    for item in files:
+                        if fnmatch(os.path.join(fpath.replace(path, "").strip("/"), item), match):
+                            shutil.move(os.path.join(fpath, item), dest)
+
+                bar.update()
+
+        # Handle pathctl
+        pathctl = meta.get("pathctl", {})
+        [shell.execute(f"pathctl add \"{entry}\"") for entry in pathctl.get("add", [])]
+        shell.execute(".")  # Refresh path
+
+        # Handle package steps
+        steps = meta.get("steps", {})
+        postinst, config = steps.get("post"), steps.get("config")
+        if config is not None:
+            shell.execute(config)
+
+        if postinst is not None:
+            postinstalls.append(postinst)
+
+        # Mark as installed
+        mark_as_installed(package_id, meta)
+        installed += 1
+
+    [shell.execute(ps) for ps in postinstalls]
+    return installed
+
+def calculate_installs(package: str) -> list:
+    if not os.path.isdir(dirs["extract"]):
+        os.mkdir(dirs["extract"])
+
+    package_path = os.path.join(dirs["extract"], "".join(random.choice(string.ascii_letters) for i in range(12))) + ".zip"
+
+    # Attempt to fetch package
+    try:
+        req = get(f"https://github.com/{package}/archive/refs/heads/master.zip", timeout = 2, stream = True)
+        if req.status_code == 404:
+            raise ConnectionError
+
+        with tqdm(total = int(req.headers.get("Content-Length", 0)), desc = "  " + package, unit = "iB", unit_scale = True) as bar:
+            with open(package_path, "wb") as fh:
+                for block in req.iter_content(4096):
+                    bar.update(len(block))
+                    fh.write(block)
+
+    except Exception:
+        print(f"  {package}: download error")
+        return []
+
+    # Extract
+    package_content_path = package_path[:-4]
+    with zipfile.ZipFile(package_path, "r") as zf:
+        zf.extractall(package_content_path)
+        inner_directory = os.path.join(package_content_path, f"{package.split('/')[-1]}-master")
+        for item in os.listdir(inner_directory):
+            shutil.move(os.path.join(inner_directory, item), os.path.join(package_content_path, item))
+
+        shutil.rmtree(inner_directory)
+
+    # Handle dependencies
+    metadata_file = os.path.join(package_content_path, ".edosmeta")
+    try:
+        with open(metadata_file, "r") as fh:
+            metadata = json.loads(fh.read())
+            metadata["source"] = package
+
+    except(FileNotFoundError, json.JSONDecodeError):
+        print(f"  {package}: metadata error")
+        return []
+
+    paths = [(package_content_path, metadata)]
+    for dep in metadata.get("dependencies", []):
+        paths += calculate_installs(dep)
+
+    return paths
+
+def get_packages_with_dependency(dep: str, packages: list) -> list:
+    pkgs = []
+    for package in packages:
+        data = (package.split(" ")[0], json.loads(" ".join(package.split(" ")[1:])))
+        if dep in data[1].get("dependencies", []):
+            pkgs.append(data[0])
+
+    return pkgs
+
+def calculate_removals(pid: str, packages: list = None) -> list:
+    if packages is None:
+        with open(package_lock, "r") as fh:
+            packages = fh.read().splitlines()
+
+    pkg = [p for p in packages if p.startswith(f"{pid} ")]
+    if not pkg:
+        print(f"  .. {pid} not installed")
+        return []
+
+    pkgs = [(pkg[0].split(" ")[0], json.loads(" ".join(pkg[0].split(" ")[1:])))]
+    print(f"  .. removing package {pid}")
+
+    # Handle dependencies
+    deps = pkgs[0][1].get("dependencies", [])
+    for dep in deps:
+        if get_packages_with_dependency(dep, packages) == [pkgs[0][0]]:
+
+            # Calculate package ID from github repo
+            pkgid = None
+            for p in packages:
+                meta = json.loads(" ".join(p.split(" ")[1:]))
+                if meta["source"] == dep:
+                    pkgid = meta["meta"]["id"]
+
+            pkgs += calculate_removals(pkgid, packages)
+
+    return pkgs
+
+def remove_packages(packages: list) -> int:
+    removed = 0
+    with open(package_lock, "r") as fh:
+        packagelock = fh.read().splitlines()
+
+    for package in packages:
+        path_entries = package[1].get("pathctl", {}).get("add", [])
+        created_dirs = package[1].get("makedir", [])
+        with tqdm(total = len(path_entries) + len(created_dirs), desc = f"  {package[0]}") as bar:
+            for entry in path_entries:
+                shell.execute(f"pathctl removeraw \"{entry}\"")
+                bar.update()
+
+            for cdir in created_dirs:
+                try:
+                    shutil.rmtree(fs.resolve(cdir))
+                    bar.update()
+
+                except FileNotFoundError:
+                    bar.update()
+
+        packagelock.remove(f"{package[0]} {json.dumps(package[1])}")
+
+    with open(package_lock, "w") as fh:
+        fh.write("\n".join(packagelock))
+
+    return removed
+
+# Handle commands
+if not argv or check_args(["-h", "--help"]):
+    exit("""Usage:
+  pkg <operation> [options] [params...]
+
+AVAILABLE OPERATIONS:
+  pkg [i/install] <repo>         installs a package from Github
+  pkg [ls/list]                  list all installed packages
+  pkg [rm/remove] <name>         removes an installed package
+
+AVAILABLE OPTIONS:
+  -h, --help                     shows this menu and exits""")
+
+start = time.time()
+if check_args(["i", "install", "rm", "remove"], 0):
+    package, installed, removed = argv[1], 0, 0
+    print(f"Now processing: {package} ...")
+
+    # Handle installing
+    if check_args(["i", "install"], 0):
+        print("Downloading package(s) ...")
+        paths = calculate_installs(package)
+        if paths:
+            print("\nInstalling package(s) ...")
+            installed = install_packages(paths)
+
+    elif check_args(["rm", "remove"], 0):
+        print("Calculating transaction ...")
+        packages = calculate_removals(package)
+        if packages:
+            print("\nRemoving package(s) ...")
+            removed = remove_packages(packages)
+
+    print(f"\nInstalled {installed} package(s), removed {removed} package(s)")
+    print(f"Transaction complete in {round(time.time() - start, 2)}s")
