@@ -25,8 +25,8 @@ The following are needed before continuing with the install:
 
 The following steps should allow you to setup a basic eDOS system.  
 Please note that **these steps are platform-dependent**, you might have to run different commands on your system.
-+ Clone the eDOS repository with `git clone https://github.com/ii-Python/edos`
-    + If you don't have Git installed, you can also [download the ZIP](https://github.com/ii-Python/edos/archive/refs/heads/master.zip)
++ Clone the eDOS repository with `git clone https://github.com/iiPythonx/edos`
+    + If you don't have Git installed, you can also [download the ZIP](https://github.com/iiPythonx/edos/archive/refs/heads/master.zip)
     + The rest of these steps assume you have also entered the cloned `edos` folder
 + Ensure that [Python Magic](https://github.com/ahupp/python-magic) is setup correctly on your system
     + You can do this by running `python3 -c 'import modules.magic'`
